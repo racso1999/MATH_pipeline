@@ -1,0 +1,64 @@
+from google import genai
+import os
+import re
+from dotenv import load_dotenv
+from datasets import load_dataset
+from math_equivalence import is_equiv
+import time
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Load dataset
+ds = load_dataset("HuggingFaceH4/MATH-500")
+problems = ds["test"]
+
+# Get the API key from environment variable
+api_key = os.getenv("GOOGLE_API_KEY")
+if not api_key:
+    raise RuntimeError("api key missing")
+client = genai.Client(api_key=api_key) # Initialize the GenAI client with the API key
+
+# Define the model
+model_name = "gemini-3.1-flash-lite"
+
+correct = 0
+total = 5
+
+# Loop through the problems, generate answers, and compare with expected answers
+answers = {}
+for i, problem in enumerate(problems.select(range(total))):
+    prompt = f"Solve this math problem. Give only the final answer.\n\n{problem['problem']}"
+
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+        )
+    except Exception as e:
+        print(f"{i+1}/{total} | API error with {model_name}: {e}")
+        time.sleep(0.3)
+        continue
+
+    answer = (response.text or "")
+    expected = problem["answer"]
+
+    try:
+        correct_flag = is_equiv(answer, expected)
+    except Exception:
+        correct_flag = answer == expected
+
+    if correct_flag:
+        correct += 1
+
+    print(f"{i+1}/{total} | {'✓' if correct_flag else '✗'} | Expected: {expected} | Got: {answer[:40]}")
+    time.sleep(0.3)  # To avoid hitting rate limits
+    answers[answer] = expected
+
+for key, value in answers.items():
+    print(f"Answer: {key} | Expected: {value}")
+
+
+
+
+
