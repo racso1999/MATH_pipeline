@@ -1,9 +1,7 @@
 from google import genai
 import os
-import re
 from dotenv import load_dotenv
 from datasets import load_dataset
-from math_equivalence import is_equiv
 import time
 
 # Load environment variables from .env file
@@ -23,7 +21,7 @@ client = genai.Client(api_key=api_key) # Initialize the GenAI client with the AP
 model_name = "gemini-3.1-flash-lite"
 
 correct = 0
-total = 5
+total = 100
 
 # Loop through the problems, generate answers, and compare with expected answers
 answers = {}
@@ -42,23 +40,19 @@ for i, problem in enumerate(problems.select(range(total))):
 
     answer = (response.text or "")
     expected = problem["answer"]
+    
+    print(f"{i+1}/{total}")
 
-    try:
-        correct_flag = is_equiv(answer, expected)
-    except Exception:
-        correct_flag = answer == expected
-
-    if correct_flag:
-        correct += 1
-
-    print(f"{i+1}/{total} | {'✓' if correct_flag else '✗'} | Expected: {expected} | Got: {answer[:40]}")
-    time.sleep(0.3)  # To avoid hitting rate limits
+    time.sleep(0.1)  # To avoid hitting rate limits
     answers[answer] = expected
 
-for key, value in answers.items():
-    print(f"Answer: {key} | Expected: {value}")
+#Evaluation using gemini flash lite
+prompt = f"{[(k, v) for k, v in answers.items()]} For each answer, expected-answer pair: determine whether they are equivalent. Return in the format: 'i/total | Expected: expected | Answer: answer | ✓/✗'. Finally after a ! return the number of correct pairs as an integer"
+response = client.models.generate_content(
+            model="gemini-3.1-flash-lite",
+            contents=prompt,
+        )
+reponses, correct = response.text.split("!")
 
-
-
-
+print(f"Correct:\n{correct}/{total} \nDetails:\n{reponses}")
 
